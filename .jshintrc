@@ -1,0 +1,13 @@
+{
+    "globalstrict": true,
+    "strict": false,
+    "asi": true,
+    "esversion": 6,
+    "globals": {
+        "console": true,
+        "chrome": true,
+        "windows": true
+    },
+    "browser": true,
+    "node": true
+}

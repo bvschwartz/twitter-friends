@@ -1,8 +1,9 @@
 {
     "manifest_version": 2,
-    "name": "chrome-extension-template",
+    "name": "Twitter Followers",
     "version": "0.0.1",
-    "description": "Chrome extension boilerplate, replace all values!",
+    "description": "Tracks changes to your twitter followers",
+    "offline_enabled": false,
     "icons": {
         "16": "16x16.png",
         "48": "48x48.png",
@@ -14,16 +15,23 @@
     },
     "content_scripts": [
         {
-            "matches": ["<all_urls>"],
+            "matches": ["https://twitter.com/*"],
             "js": ["in-content.js"]
         }
     ],
     "background": {
         "scripts": ["background.js"],
-        "persistent": false
+        "persistent": true
     },
     "content_security_policy":
         "script-src 'self' 'unsafe-eval'; object-src 'self'; img-src * data: 'self' 'unsafe-eval'",
-    "offline_enabled": true,
-    "permissions": ["tabs", "<all_urls>", "activeTab"]
+    "permissions": [
+        "tabs",
+        "*://twitter.com/*",
+        "*://api.twitter.com/*",
+        "activeTab",
+        "storage",
+        "webRequest",
+        "webRequestBlocking"
+    ]
 }
