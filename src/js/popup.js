@@ -9,45 +9,58 @@
  *
  */
 
+import $ from './jquery-3.4.1.min.js'
+
+
 // Start the popup script, this could be anything from a simple script to a webapp
 const initPopupScript = () => {
-    // Access the background window object
-    const backgroundWindow = chrome.extension.getBackgroundPage();
-    // Do anything with the exposed variables from background.js
-    console.log(backgroundWindow.sampleBackgroundGlobal);
 
     // This port enables a long-lived connection to in-content.js
-    let port = null;
-
-    // Send messages to the open port
-    const sendPortMessage = message => port.postMessage(message);
+    var tabId = -1
 
     // Find the current active tab
-    const getTab = () =>
-        new Promise(resolve => {
-            chrome.tabs.query(
-                {
-                    active: true,
-                    currentWindow: true
-                },
-                tabs => resolve(tabs[0])
-            );
-        });
+    function getTab() {
+        return new Promise(function(resolve) {
+            chrome.tabs.query({
+                active: true,
+                currentWindow: true
+            },
+            function(tabs) {
+                resolve(tabs[0])
+            })
+        })
+    }
 
-    // Handle port messages
-    const messageHandler = message => {
-        console.log('popup.js - received message:', message);
-    };
+    function renderHtml(data) {
+        console.log('render:', data);
+        var html
+        if (data) {
+            $('#history_container').show()
+            html = '<b>' + data.name + '</b> @' + data.name
+            html += '<br>was following ' + data.friend_count + ' twitter accounts as of<br> ' + (new Date(data.timestamp * 1000))
+        }
+        else {
+            $('#history_container').hide()
+            html = 'No data yet... try refreshing page'
+        }
+        $('#user').html(html)
+    }
 
-    // Find the current active tab, then open a port to it
-    getTab().then(tab => {
-        // Connects to tab port to enable communication with inContent.js
-        port = chrome.tabs.connect(tab.id, { name: 'chrome-extension-template' });
-        // Set up the message listener
-        port.onMessage.addListener(messageHandler);
-        // Send a test message to in-content.js
-        sendPortMessage('Message from popup!');
-    });
+    $('#update_button').click(function() {
+        chrome.runtime.sendMessage({cmd: 'update', tabId: tabId}, renderHtml)
+    })
+
+    // Find the current active tab, then send it a message
+    getTab().then(function(tab) {
+        //console.log('tab:', tab.url)
+        tabId = tab.id
+        if (!tab.url.startsWith('https://twitter.com')) {
+            $('#user').html('Open this extension while on a logged-in www.twitter.com page.')
+            return
+        }
+        chrome.runtime.sendMessage({cmd: 'get_info', tabId: tabId}, renderHtml)
+
+    })
 };
 
 // Fire scripts after page has loaded

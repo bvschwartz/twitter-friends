@@ -1,5 +1,5 @@
 {
-    "name": "chrome-extension-template",
+    "name": "twitter-friends",
     "version": "0.0.9",
     "description": "Chrome extension boilerplate, replace all values!",
     "main": "src/index.js",

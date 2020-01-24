@@ -1,8 +1,8 @@
 {
     "manifest_version": 2,
-    "name": "Twitter Followers",
+    "name": "Twitter Friends",
     "version": "0.0.1",
-    "description": "Tracks changes to your twitter followers",
+    "description": "Tracks changes to your twitter friends",
     "offline_enabled": false,
     "icons": {
         "16": "16x16.png",
@@ -10,15 +10,17 @@
         "128": "128x128.png"
     },
     "browser_action": {
-        "default_title": "Boilerplate popup!",
+        "default_title": "Twitter Friends",
         "default_popup": "popup.html"
     },
+    /*
     "content_scripts": [
         {
             "matches": ["https://twitter.com/*"],
             "js": ["in-content.js"]
         }
     ],
+    */
     "background": {
         "scripts": ["background.js"],
         "persistent": true
@@ -26,9 +28,9 @@
     "content_security_policy":
         "script-src 'self' 'unsafe-eval'; object-src 'self'; img-src * data: 'self' 'unsafe-eval'",
     "permissions": [
-        "tabs",
-        "*://twitter.com/*",
-        "*://api.twitter.com/*",
+        "https://twitter.com/",
+        "https://twitter.com/*",
+        "https://api.twitter.com/*",
         "activeTab",
         "storage",
         "webRequest",
