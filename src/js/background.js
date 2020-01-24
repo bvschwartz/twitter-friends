@@ -290,6 +290,7 @@ function sendPageData(id_str, userData, sendFunc) {
     //console.log('sending', data); sendResponse(data); return
     var friends = userData.friends
     if (friends) {
+        data.friends = userData.friends.ids
         data.friend_count = friends.ids.length.toString()
         data.timestamp = friends.timestamp
     }

@@ -84,6 +84,13 @@ const initPopupScript = () => {
                 html += '</li>'
             }
             html += '</ul>'
+
+            if (data.friends) {
+                html += '<br><br>'
+                html += '<a download="friends.txt" href="data:application/octet-stream,'
+                html += data.friends.join('\n')
+                html += '">Download Friend List</a>'
+            }
             $('#history').html(html)
         }
 
