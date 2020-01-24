@@ -8,29 +8,34 @@
  * Note that not all extensions need of a background.js file, but extensions that need to persist data after a popup has closed may need of it.
  */
 
+var verbose = false
+
+chrome.storage.local.getBytesInUse(null, function(bytes) {
+    console.log('chrome.storage.local:', bytes, 'bytes in use')
+})
+
 var user_map    // <twitter user's id_str> -> name, screen_name
 var auth_table  // [ {token, csrf, name, screen_name}
+var user_data_cache
 
 var tabDict = {}
-console.log('tabDict:', tabDict)
+verbose && console.log('tabDict:', tabDict)
 
 function now() {
     return Math.floor((new Date()).getTime() / 1000)
 }
 
 chrome.storage.local.remove('auth_map')
-chrome.storage.local.get(function(result) {
-    console.log(result)
-})
+//chrome.storage.local.get(function(result) { console.log('all of local storage:', result) })
 
 chrome.storage.local.get(['user_map', 'auth_table'], function(result) {
     user_map = (result && result.user_map) || {}
-    auth_table = (result && result.auth_table) || {}
+    auth_table = (result && result.auth_table) || []
     //user_map = {};
-    //auth_table = []
-    console.log('user_map:', JSON.stringify(user_map, null, 4))
-    console.log('auth_table:', JSON.stringify(auth_table, null, 4))
-    checkAuths()
+    auth_table = []
+    verbose && console.log('user_map:', JSON.stringify(user_map, null, 4))
+    verbose && console.log('auth_table:', JSON.stringify(auth_table, null, 4))
+    //checkAuths()
 })
 
 function setUser(id_str, name, screen_name) {
@@ -81,6 +86,19 @@ function checkAuths() {
     }
 }
 
+function checkAuthToken(token, force) {
+    for (var data of auth_table) {
+        if (data.token == token) {
+            verbose && console.log('checkAuthToken: ', token)
+            if (force) {
+                console.log('force verify')
+                data.update = true
+            }
+            checkAuth(data, force)
+        }
+    }
+}
+
 function getKeysForUser(id_str) {
     return {
         status: id_str + '_status',
@@ -91,15 +109,26 @@ function getKeysForUser(id_str) {
 }
 
 function getUserData(id_str, callback) {
+    if (user_data_cache && user_data_cache.id_str == id_str) {
+        verbose && console.log('getUserData:', 'using cache')
+        callback(user_data_cache.userData)
+        return
+    }
+    console.log('getUserData:', 'get from storage')
     var keys = getKeysForUser(id_str)
     chrome.storage.local.get([keys.status, keys.profile, keys.friends, keys.history], function(response) {
-        console.log('getUserData:', response)
-        callback({
+        console.log('getUserData got:', response)
+        var userData = {
             status: response[keys.status],
             profile: response[keys.profile],
             friends: response[keys.friends],
             history: response[keys.history],
-        })
+        }
+        user_data_cache = {
+            id_str: id_str,
+            userData: userData
+        }
+        callback(userData)
     })
 }
 
@@ -110,17 +139,30 @@ function putUserData(id_str, data, callback) {
     if (data.profile) { userData[keys.profile] = data.profile }
     if (data.friends) { userData[keys.friends] = data.friends }
     if (data.history) { userData[keys.history] = data.history }
-    chrome.storage.local.set(userData, callback)
+    chrome.storage.local.set(userData, function() {
+        user_data_cache = null
+        getUserData(id_str, callback)
+    })
 }
 
+// make sure that we've fetched the user's friends the first time
+// also make sure that we've gotten their history the first time
+var checkingUser = false
 function checkUser(id_str) {
-    console.log('checkUser:', id_str)
-    if (!id_str) return
+    if (checkingUser) {
+        console.log('checkUser: already checking')
+        return
+    }
+    checkingUser = true
+
+    verbose && console.log('checkUser:', id_str)
     getUserData(id_str, function(userData) {
-        console.log('userData:', userData)
+        verbose && console.log('userData:', userData)
         if (!userData.friends) {
             getFriendsForUser(id_str, userData)
         }
+        checkHistory(id_str, userData)
+        checkingUser = false
     })
 }
 
@@ -167,9 +209,9 @@ function getFriendsForUser(id_str, userData, callback) {
                 userData.history = data.history
             }
 
-            // this is a little dangerous because we haven't yet done the diff between old and new
+            // this is a little dangerous because we haven't yet done the diff between old and new history
             putUserData(id_str, data, function() {
-                console.log('... saved', data)
+                console.log('... saved friends & history', data)
                 if (callback) callback(null, data.friends)
             })
         
@@ -181,7 +223,9 @@ function getFriendsForUser(id_str, userData, callback) {
     })
 }
 
+var checkingAuth = false
 function checkAuth(data) {
+    verbose && console.log('checkAuth:', data)
     if (!data) return
     if (!data.csrf) return
 
@@ -193,7 +237,14 @@ function checkAuth(data) {
         checkUser(data.id_str)
         return
     }
-    console.log('checking', data)
+
+    if (checkingAuth) {
+        console.log('already checking auth')
+        return
+    }
+    checkingAuth = true
+    
+    console.log('checkAuth: verify_credentials')
     const url = 'https://api.twitter.com/1.1/account/verify_credentials.json'
     fetch(url, { headers: {
         'authorization': data.token,
@@ -202,7 +253,7 @@ function checkAuth(data) {
     .then(function(response) {
         response.text().then(function(json) {
             var obj = JSON.parse(json)
-            console.log('checkAuth response: ', JSON.stringify(obj, null, 4))
+            console.log('verify_credentals:', obj)
             data.id_str = obj.id_str
             data.screen_name = obj.screen_name
             data.name = obj.name
@@ -211,17 +262,19 @@ function checkAuth(data) {
             var i = auth_table.findIndex(function(item) { return item.token == data.token })
             auth_table[i] = data
             authTableChanged()
-            setUser(obj.id_str, obj.name, obj.screen_name )
+            setUser(obj.id_str, obj.name, obj.screen_name)
             checkUser(obj.id_str)
+            checkingAuth = false
         })
     })
     .catch(function(error) {
-        console.log('checkAuth failed:', error.message)
+        console.log('verify_credentials failed:', error.message)
         data.failures = data.failures || 0
         data.failures += 1
         var i = auth_table.findIndex(function(item) { return item.token == data.token })
         auth_table[i] = data
         authTableChanged()
+        checkingAuth = false
     })
 
 }
@@ -241,10 +294,25 @@ function sendPageData(id_str, userData, sendFunc) {
         data.timestamp = friends.timestamp
     }
     if (userData.history) {
-        data.history = userData.history
+        data.history = JSON.parse(JSON.stringify(userData.history))
+
+        for (var item of data.history) {
+            item.dels = item.dels.map(mapIdStr)
+            item.adds = item.adds.map(mapIdStr)
+        }
     }
     console.log('sending', data)
     sendFunc(data)
+
+    function mapIdStr(s) {
+        var data = { id_str: s }
+        var map = user_map[s]
+        if (map) {
+            data.name = map.name
+            data.screen_name = map.screen_name
+        }
+        return data
+    }
 }
 
 function calcArrayChanges(oldArray, newArray, callback) {
@@ -306,6 +374,9 @@ function calcArrayChanges(oldArray, newArray, callback) {
 function updateHistory(id_str, userData, callback) {
     var friends = userData.friends
     getFriendsForUser(id_str, userData, function(err, newFriends) {
+        if (!(friends && newFriends)) {
+            console.log('friends:', friends, 'newFriends:', newFriends)
+        }
         calcArrayChanges(friends.ids, newFriends.ids, (adds, dels) => {
             console.log('adds:', adds, 'dels:', dels)
             var history = userData.history
@@ -329,11 +400,67 @@ function updateHistory(id_str, userData, callback) {
                 })
             }
             putUserData(id_str, { history: history }, function() {
+                checkHistory(id_str, userData)
                 callback(userData)
             })
         })
         //console.log(friends, newFriends)
         // need to refetch history...
+    })
+}
+
+// look for add/del that don't have user_table entries
+function checkHistory(id_str, userData) {
+    if (!userData.history) return
+    var history = userData.history || []
+    var missing = []
+
+    function addMissing(list) {
+        for (var s of list) {
+            if (!user_map[s]) {
+                missing.push(s)
+            }
+        }
+    }
+
+    for (var item of userData.history) {
+        addMissing(item.adds)
+        addMissing(item.dels)
+    }
+    if (missing.length == 0) return
+    console.log('checkHistory: missing:', missing)
+
+    console.log('checkHistory: lookupFriends for ' + id_str)
+    lookupFriends(id_str, missing)
+}
+
+function lookupFriends(id_str, friends, callback) {
+    var name = user_map[id_str].name
+    var screen_name = user_map[id_str].screen_name
+    var data = getAuthForUser(id_str)
+    var url = 'https://api.twitter.com/1.1/users/lookup.json?user_id='
+    url += friends.slice(0, 100).join(',')
+    //console.log(url)
+
+    fetch(url, { headers: {
+        'authorization': data.token,
+        'x-csrf-token': data.csrf
+    }})
+    .then(function(response) {
+        response.text().then(function(json) {
+            var list = JSON.parse(json)
+            var timestamp = now()
+            for (var item of list) {
+                user_map[item.id_str] = { name: item.name, screen_name: item.screen_name, timestamp: timestamp }
+                console.log(user_map[id_str])
+                //setUser(item.id_str, item.name, item.screen_name)
+            }
+            userMapChanged()
+        })
+    })
+    .catch(function(error) {
+        console.log('lookup failed:', error.message)
+        if (callback) callback(error)
     })
 }
 
@@ -398,6 +525,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(function(details) {
             }
         }
         if (data.auth && data.csrf) {
+            verbose && console.log('webRequest.onBeforeSendHeaders:', data.auth, data.csrf, details.url)
 
             setAuth(data.auth, data.csrf)
 
@@ -410,6 +538,9 @@ chrome.webRequest.onBeforeSendHeaders.addListener(function(details) {
                 tabDict[tabId] = data
                 console.log('tab dict:', JSON.stringify(tabDict, null, 4))
             }
+
+            var force = (details.url.indexOf('home.json') >= 0)
+            checkAuthToken(data.auth, force)
         }
     },
     {urls: ['https://api.twitter.com/*']},

@@ -46,20 +46,20 @@ const initPopupScript = () => {
         }
 
         $('#history_container').show()
-        html = '<b>' + data.name + '</b> @' + data.name
+        html = '<b>' + data.name + '</b> @' + data.screen_name
         html += '<br>was following ' + data.friend_count + ' twitter accounts as of<br> ' + timeString(data.timestamp)
         $('#user').html(html)
 
         if (data.history) {
-            html = '<ul>'
+            html = ""
+            html += '<h2>Friend History</h2>'
+            html += '<ul>'
             for (var i in data.history) {
                 var item = data.history[i]
                 html += '<li>'
                 html += item.friend_count + ' friends'
-                if (item.adds.length > 0) { html += ', added ' + item.adds.length }
-                if (item.dels.length > 0) { html += ', deleted ' + item.dels.length }
                 if (item.adds.length == 0 && item.dels.length == 0) {
-                    if (i + 1 == data.history.length) {
+                    if (i == (data.history.length - 1)) {
                         html += ', start of history'
                     }
                     else {
@@ -67,6 +67,20 @@ const initPopupScript = () => {
                     }
                 }
                 html += '  (' + timeString(item.timestamp) + ')'
+                html += '<br>'
+                html += '<span style="color:green">'
+                for (var add of item.adds) {
+                    html += ' +' + (add.screen_name || add.id_str)
+                }
+                html += '</span>'
+                html += '<span style="color:red">'
+                for (var del of item.dels) {
+                    console.log(del)
+                    html += ' -' + (del.screen_name || del.id_str)
+                }
+                html += '</span>'
+                //if (item.adds.length > 0) { html += ', added ' + item.adds.length }
+                //if (item.dels.length > 0) { html += ', deleted ' + item.dels.length }
                 html += '</li>'
             }
             html += '</ul>'
