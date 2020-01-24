@@ -90,14 +90,36 @@ function getKeysForUser(id_str) {
     }
 }
 
+function getUserData(id_str, callback) {
+    var keys = getKeysForUser(id_str)
+    chrome.storage.local.get([keys.status, keys.profile, keys.friends, keys.history], function(response) {
+        console.log('getUserData:', response)
+        callback({
+            status: response[keys.status],
+            profile: response[keys.profile],
+            friends: response[keys.friends],
+            history: response[keys.history],
+        })
+    })
+}
+
+function putUserData(id_str, data, callback) {
+    var userData = {}
+    var keys = getKeysForUser(id_str)
+    if (data.status) { userData[keys.status] = data.status }
+    if (data.profile) { userData[keys.profile] = data.profile }
+    if (data.friends) { userData[keys.friends] = data.friends }
+    if (data.history) { userData[keys.history] = data.history }
+    chrome.storage.local.set(userData, callback)
+}
+
 function checkUser(id_str) {
     console.log('checkUser:', id_str)
     if (!id_str) return
-    var keys = getKeysForUser(id_str)
-    chrome.storage.local.get([keys.status, keys.profile, keys.friends, keys.history], function(result) {
-        console.log(result)
-        if (!result[keys.friends]) {
-            getFriendsForUser(id_str)
+    getUserData(id_str, function(userData) {
+        console.log('userData:', userData)
+        if (!userData.friends) {
+            getFriendsForUser(id_str, userData)
         }
     })
 }
@@ -111,8 +133,7 @@ function getAuthForUser(id_str) {
     console.log('did not find', id_str)
 }
 
-function getFriendsForUser(id_str, callback) {
-    var keys = getKeysForUser(id_str)
+function getFriendsForUser(id_str, userData, callback) {
     var url = 'https://api.twitter.com/1.1/friends/ids.json?count=5000&stringify_ids=true&user_id=' + id_str
     var name = user_map[id_str].name
     var screen_name = user_map[id_str].screen_name
@@ -129,15 +150,27 @@ function getFriendsForUser(id_str, callback) {
                console.warn('there is another page of friend ids!') 
             }
             console.log(screen_name + ' follows ' + obj.ids.length + ' friends')
-            var data = {
+            var data = {}
+            data.friends = {
                 ids: obj.ids,
                 timestamp: now()
             }
-            var save = {}
-            save[keys.friends] = data
-            chrome.storage.local.set(save, function() {
-                console.log('... saved', keys.friends)
-                if (callback) callback(null, data)
+            //delete userData.history // for debugging
+            if (!userData.history) {
+                console.log('needs to add the first history item')
+                data.history = [{
+                    friend_count: obj.ids.length,
+                    adds: [],
+                    dels: [],
+                    timestamp: now()
+                }]
+                userData.history = data.history
+            }
+
+            // this is a little dangerous because we haven't yet done the diff between old and new
+            putUserData(id_str, data, function() {
+                console.log('... saved', data)
+                if (callback) callback(null, data.friends)
             })
         
         })
@@ -193,10 +226,8 @@ function checkAuth(data) {
 
 }
 
-function sendPageData(tabId, sendFunc) {
+function sendPageData(id_str, userData, sendFunc) {
     //console.log('background, send response to tabId: ' +  tabId, tabDict[tabId])
-    var i = auth_table.findIndex(function(item) { return item.token == tabDict[tabId].auth })
-    var id_str = auth_table[i].id_str
     var user = user_map[id_str]
     var data = {
         id_str: id_str,
@@ -204,16 +235,16 @@ function sendPageData(tabId, sendFunc) {
         name: user.name
     }
     //console.log('sending', data); sendResponse(data); return
-    var keys = getKeysForUser(id_str)
-    chrome.storage.local.get([keys.status, keys.profile, keys.friends, keys.history], function(result) {
-        var friends = result[keys.friends]
-        if (friends) {
-            data.friend_count = friends.ids.length.toString()
-            data.timestamp = friends.timestamp
-        }
-        console.log('sending', data)
-        sendFunc(data)
-    })
+    var friends = userData.friends
+    if (friends) {
+        data.friend_count = friends.ids.length.toString()
+        data.timestamp = friends.timestamp
+    }
+    if (userData.history) {
+        data.history = userData.history
+    }
+    console.log('sending', data)
+    sendFunc(data)
 }
 
 function calcArrayChanges(oldArray, newArray, callback) {
@@ -222,7 +253,7 @@ function calcArrayChanges(oldArray, newArray, callback) {
     var dels = []
     var o = 0
     var n = 0
-    console.log('old:', oldArray, 'new:', newArray)
+    //console.log('old:', oldArray, 'new:', newArray)
     while (true) {
         var oItem = oldArray[o]
         var nItem = newArray[n]
@@ -272,17 +303,37 @@ function calcArrayChanges(oldArray, newArray, callback) {
     if (callback) callback(adds, dels)
 }
 
-function updateHistory(tabId, callback) {
-    var i = auth_table.findIndex(function(item) { return item.token == tabDict[tabId].auth })
-    var id_str = auth_table[i].id_str
-    var keys = getKeysForUser(id_str)
-    chrome.storage.local.get([keys.status, keys.profile, keys.friends, keys.history], function(result) {
-        var friends = result[keys.friends]
-        getFriendsForUser(id_str, function(err, newFriends) {
-            calcArrayChanges(friends.ids, newFriends.ids, (adds, dels) => console.log('adds:', adds, 'dels:', dels))
-            //console.log(friends, newFriends)
-            callback()
+function updateHistory(id_str, userData, callback) {
+    var friends = userData.friends
+    getFriendsForUser(id_str, userData, function(err, newFriends) {
+        calcArrayChanges(friends.ids, newFriends.ids, (adds, dels) => {
+            console.log('adds:', adds, 'dels:', dels)
+            var history = userData.history
+            console.log('history before:', history)
+            if (history.length > 1 &&
+                adds.length == 0 &&
+                dels.length == 0 &&
+                history[0].adds.length == 0 &&
+                history[0].dels.length == 0) {
+                // just update the top entry
+                console.log('updateHistory: adjust timestamp of top item')
+                history[0].timestamp = now()
+            }
+            else {
+                console.log('updateHistory: push a new item')
+                history.unshift({
+                    friend_count: newFriends.ids.length,
+                    adds: adds,
+                    dels: dels,
+                    timestamp: now()
+                })
+            }
+            putUserData(id_str, { history: history }, function() {
+                callback(userData)
+            })
         })
+        //console.log(friends, newFriends)
+        // need to refetch history...
     })
 }
 
@@ -292,21 +343,38 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     // Perform any ther actions depending on the message
     //console.log('chrome.runtime.onMessage.addListener: ', message, sender)
     var tabId = message.tabId
+
     if (!tabDict[tabId]) {
         console.log('background, no response for tabId: ' +  tabId)
         sendResponse(null)
         return
     }
 
-    if (message.cmd == 'update') {
-        console.log('update history!')
-        updateHistory(tabId, function() {
-            sendPageData(tabId, sendResponse)
-        })
-    }
-    else {
-        sendPageData(tabId, sendResponse)
-    }
+    var i = auth_table.findIndex(function(item) { return item.token == tabDict[tabId].auth })
+    var id_str = auth_table[i].id_str
+    getUserData(id_str, function(userData) {
+        if (message.cmd == 'update') {
+            console.log('update history!')
+            updateHistory(id_str, userData, function(newData) {
+                sendPageData(id_str, newData, sendResponse)
+            })
+        }
+        else if (message.cmd == 'get_info') {
+            if (userData.history) {
+                sendPageData(id_str, userData, sendResponse)
+            }
+            else {
+                console.log('create history!')
+                updateHistory(id_str, userData, function(newData) {
+                    sendPageData(id_str, newData, sendResponse)
+                })
+            }
+        }
+        else {
+            console.log('unknown cmd:', message.cmd)
+        }
+    })
+
     return true
 })
 

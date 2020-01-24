@@ -31,19 +31,48 @@ const initPopupScript = () => {
         })
     }
 
+    function timeString(timestamp) {
+        return (new Date(timestamp * 1000)).toString().replace(/ GMT.*/, '')
+    }
+
     function renderHtml(data) {
         console.log('render:', data);
         var html
-        if (data) {
-            $('#history_container').show()
-            html = '<b>' + data.name + '</b> @' + data.name
-            html += '<br>was following ' + data.friend_count + ' twitter accounts as of<br> ' + (new Date(data.timestamp * 1000))
-        }
-        else {
+        if (!data) {
             $('#history_container').hide()
             html = 'No data yet... try refreshing page'
+            $('#user').html(html)
+            return
         }
+
+        $('#history_container').show()
+        html = '<b>' + data.name + '</b> @' + data.name
+        html += '<br>was following ' + data.friend_count + ' twitter accounts as of<br> ' + timeString(data.timestamp)
         $('#user').html(html)
+
+        if (data.history) {
+            html = '<ul>'
+            for (var i in data.history) {
+                var item = data.history[i]
+                html += '<li>'
+                html += item.friend_count + ' friends'
+                if (item.adds.length > 0) { html += ', added ' + item.adds.length }
+                if (item.dels.length > 0) { html += ', deleted ' + item.dels.length }
+                if (item.adds.length == 0 && item.dels.length == 0) {
+                    if (i + 1 == data.history.length) {
+                        html += ', start of history'
+                    }
+                    else {
+                        html += ', no changes'
+                    }
+                }
+                html += '  (' + timeString(item.timestamp) + ')'
+                html += '</li>'
+            }
+            html += '</ul>'
+            $('#history').html(html)
+        }
+
     }
 
     $('#update_button').click(function() {
@@ -55,6 +84,7 @@ const initPopupScript = () => {
         //console.log('tab:', tab.url)
         tabId = tab.id
         if (!tab.url.startsWith('https://twitter.com')) {
+            $('#history_container').hide()
             $('#user').html('Open this extension while on a logged-in www.twitter.com page.')
             return
         }
