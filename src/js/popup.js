@@ -50,6 +50,11 @@ const initPopupScript = () => {
         html += '<br>was following ' + data.friend_count + ' twitter accounts as of<br> ' + timeString(data.timestamp)
         $('#user').html(html)
 
+        function itemHtml(item) {
+            if (!item.screen_name) { return item.id_str }
+            return '<a class="friend" href="https://twitter.com/' + item.screen_name + '" target="_blank">' + item.screen_name + '</a>'
+        }
+
         if (data.history) {
             html = ""
             html += '<h2>Friend History</h2>'
@@ -70,13 +75,13 @@ const initPopupScript = () => {
                 html += '<br>'
                 html += '<span style="color:green">'
                 for (var add of item.adds) {
-                    html += ' +' + (add.screen_name || add.id_str)
+                    html += ' +' + itemHtml(add)
                 }
                 html += '</span>'
                 html += '<span style="color:red">'
                 for (var del of item.dels) {
                     console.log(del)
-                    html += ' -' + (del.screen_name || del.id_str)
+                    html += ' -' + itemHtml(del)
                 }
                 html += '</span>'
                 //if (item.adds.length > 0) { html += ', added ' + item.adds.length }

@@ -450,6 +450,18 @@ function lookupFriends(id_str, friends, callback) {
     .then(function(response) {
         response.text().then(function(json) {
             var list = JSON.parse(json)
+            if (list.errors) {
+                if (list.errors[0].code == 17) {
+                    // ""No user matches for specified terms."
+                    console.log(list.errors[0].message)
+                    for (var friend of friends) {
+                        user_map[friend] = { error: 'unknown' }
+                    }
+                    userMapChanged()
+                }
+                return
+            }
+            console.log(list)
             var timestamp = now()
             for (var item of list) {
                 user_map[item.id_str] = { name: item.name, screen_name: item.screen_name, timestamp: timestamp }
