@@ -47,7 +47,7 @@ const initPopupScript = () => {
 
         $('#history_container').show()
         html = '<b>' + data.name + '</b> @' + data.screen_name
-        html += '<br>was following ' + data.friend_count + ' twitter accounts as of<br> ' + timeString(data.timestamp)
+        html += '<br>is following ' + data.friend_count + ' twitter accounts'
         $('#user').html(html)
 
         function itemHtml(item) {
@@ -111,10 +111,11 @@ const initPopupScript = () => {
         tabId = tab.id
         if (!tab.url.startsWith('https://twitter.com')) {
             $('#history_container').hide()
-            $('#user').html('Open this extension while on a logged-in www.twitter.com page.')
+            $('#user').html('Open this extension while on a logged-in twitter.com page.')
             return
         }
-        chrome.runtime.sendMessage({cmd: 'get_info', tabId: tabId}, renderHtml)
+        //chrome.runtime.sendMessage({cmd: 'get_info', tabId: tabId}, renderHtml)
+        chrome.runtime.sendMessage({cmd: 'update', tabId: tabId}, renderHtml)
 
     })
 };
