@@ -111,7 +111,7 @@ const initPopupScript = () => {
         tabId = tab.id
         if (!tab.url.startsWith('https://twitter.com')) {
             $('#history_container').hide()
-            $('#user').html('Open this extension while on a logged-in twitter.com page.')
+            $('#user').html('Open this extension while on a logged-in <a href="https://twitter.com" target="_blank">twitter.com</a> page.')
             return
         }
         //chrome.runtime.sendMessage({cmd: 'get_info', tabId: tabId}, renderHtml)

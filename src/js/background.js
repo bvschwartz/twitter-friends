@@ -33,8 +33,8 @@ chrome.storage.local.get(['user_map', 'auth_table'], function(result) {
     auth_table = (result && result.auth_table) || []
     //user_map = {};
     auth_table = []
-    verbose && console.log('user_map:', JSON.stringify(user_map, null, 4))
-    verbose && console.log('auth_table:', JSON.stringify(auth_table, null, 4))
+    console.log('user_map:', user_map)
+    console.log('auth_table:', auth_table)
     //checkAuths()
 })
 
@@ -290,7 +290,16 @@ function sendPageData(id_str, userData, sendFunc) {
     //console.log('sending', data); sendResponse(data); return
     var friends = userData.friends
     if (friends) {
-        data.friends = userData.friends.ids
+        data.friends = []
+        for (var id of userData.friends.ids) {
+            var map = user_map[id]
+            if (map) {
+                data.friends.push(map.screen_name)
+            }
+            else {
+                data.friendds.push(id)
+            }
+        }
         data.friend_count = friends.ids.length.toString()
         data.timestamp = friends.timestamp
     }
@@ -428,6 +437,8 @@ function checkHistory(id_str, userData) {
         addMissing(item.adds)
         addMissing(item.dels)
     }
+    //console.log('addMissing friends:', userData.friends.ids)
+    addMissing(userData.friends.ids)
     if (missing.length == 0) return
     console.log('checkHistory: missing:', missing)
 
