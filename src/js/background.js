@@ -410,17 +410,16 @@ function updateHistory(id_str, userData, callback) {
                 })
             }
             putUserData(id_str, { history: history }, function() {
-                checkHistory(id_str, userData)
-                callback(userData)
+                checkHistory(id_str, userData, function() {
+                    if (callback) callback(userData)
+                })
             })
         })
-        //console.log(friends, newFriends)
-        // need to refetch history...
     })
 }
 
 // look for add/del that don't have user_table entries
-function checkHistory(id_str, userData) {
+function checkHistory(id_str, userData, callback) {
     if (!userData.history) return
     var history = userData.history || []
     var missing = []
@@ -439,11 +438,14 @@ function checkHistory(id_str, userData) {
     }
     //console.log('addMissing friends:', userData.friends.ids)
     addMissing(userData.friends.ids)
-    if (missing.length == 0) return
-    console.log('checkHistory: missing:', missing)
+    if (missing.length == 0) {
+        console.log('checkHistory: no missing names')
+        if (callback) callback()
+        return
+    }
 
     console.log('checkHistory: lookupFriends for ' + id_str)
-    lookupFriends(id_str, missing)
+    lookupFriends(id_str, missing, callback)
 }
 
 function lookupFriends(id_str, friends, callback) {
@@ -470,6 +472,7 @@ function lookupFriends(id_str, friends, callback) {
                     }
                     userMapChanged()
                 }
+                if (callback) callback()
                 return
             }
             console.log(list)
@@ -480,6 +483,7 @@ function lookupFriends(id_str, friends, callback) {
                 //setUser(item.id_str, item.name, item.screen_name)
             }
             userMapChanged()
+            if (callback) callback()
         })
     })
     .catch(function(error) {
@@ -509,17 +513,6 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
             updateHistory(id_str, userData, function(newData) {
                 sendPageData(id_str, newData, sendResponse)
             })
-        }
-        else if (message.cmd == 'get_info') {
-            if (userData.history) {
-                sendPageData(id_str, userData, sendResponse)
-            }
-            else {
-                console.log('create history!')
-                updateHistory(id_str, userData, function(newData) {
-                    sendPageData(id_str, newData, sendResponse)
-                })
-            }
         }
         else {
             console.log('unknown cmd:', message.cmd)

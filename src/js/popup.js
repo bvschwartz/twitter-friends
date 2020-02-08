@@ -10,6 +10,9 @@
  */
 
 import $ from './jquery-3.4.1.min.js'
+import dayjs from './dayjs.min.js'
+import relativeTime from './relativeTime.js'
+dayjs.extend(relativeTime)
 
 
 // Start the popup script, this could be anything from a simple script to a webapp
@@ -32,7 +35,8 @@ const initPopupScript = () => {
     }
 
     function timeString(timestamp) {
-        return (new Date(timestamp * 1000)).toString().replace(/ GMT.*/, '')
+        return dayjs(timestamp * 1000).fromNow()
+        //return (new Date(timestamp * 1000)).toString().replace(/ GMT.*/, '')
     }
 
     function renderHtml(data) {
@@ -101,10 +105,6 @@ const initPopupScript = () => {
 
     }
 
-    $('#update_button').click(function() {
-        chrome.runtime.sendMessage({cmd: 'update', tabId: tabId}, renderHtml)
-    })
-
     // Find the current active tab, then send it a message
     getTab().then(function(tab) {
         //console.log('tab:', tab.url)
@@ -114,7 +114,6 @@ const initPopupScript = () => {
             $('#user').html('Open this extension while on a logged-in <a href="https://twitter.com" target="_blank">twitter.com</a> page.')
             return
         }
-        //chrome.runtime.sendMessage({cmd: 'get_info', tabId: tabId}, renderHtml)
         chrome.runtime.sendMessage({cmd: 'update', tabId: tabId}, renderHtml)
 
     })

@@ -1,7 +1,7 @@
 {
     "manifest_version": 2,
     "name": "Twitter Friends",
-    "version": "0.4",
+    "version": "0.5",
     "description": "Tracks changes to your twitter friends",
     "offline_enabled": false,
     "icons": {
