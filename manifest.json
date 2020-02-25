@@ -22,9 +22,7 @@
     "permissions": [
         "https://twitter.com/*",
         "https://*.twitter.com/*",
-        "activeTab",
         "storage",
-        "webRequest",
-        "webRequestBlocking"
+        "webRequest"
     ]
 }

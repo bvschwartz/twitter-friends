@@ -52,6 +52,12 @@ const initPopupScript = () => {
         $('#history_container').show()
         html = '<b>' + data.name + '</b> @' + data.screen_name
         html += '<br>is following ' + data.friend_count + ' twitter accounts'
+        if (data.friends) {
+            html += '<br>'
+            html += '<a download="friends.txt" href="data:application/octet-stream,'
+            html += data.friends.join('\n')
+            html += '">Download Friend List</a>'
+        }
         $('#user').html(html)
 
         function itemHtml(item) {
@@ -94,12 +100,6 @@ const initPopupScript = () => {
             }
             html += '</ul>'
 
-            if (data.friends) {
-                html += '<br><br>'
-                html += '<a download="friends.txt" href="data:application/octet-stream,'
-                html += data.friends.join('\n')
-                html += '">Download Friend List</a>'
-            }
             $('#history').html(html)
         }
 
@@ -109,7 +109,8 @@ const initPopupScript = () => {
     getTab().then(function(tab) {
         //console.log('tab:', tab.url)
         tabId = tab.id
-        if (!tab.url.startsWith('https://twitter.com')) {
+        console.log(tab)
+        if (!(tab.url && tab.url.startsWith('https://twitter.com'))) {
             $('#history_container').hide()
             $('#user').html('Open this extension while on a logged-in <a href="https://twitter.com" target="_blank">twitter.com</a> page.')
             return
